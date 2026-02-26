@@ -10,8 +10,8 @@ All source code lives in `BusNetPynew/`. There is no `setup.py` or `pyproject.to
 
 ### Running and testing
 - **Import test**: `python3 -c "import BusNetPynew; print(BusNetPynew.__all__)"`
-- **Lint**: `flake8 BusNetPynew/ --max-line-length=150` (pre-existing style issues exist)
-- **No automated tests** exist in this repo. Validation is done by importing modules and exercising functions with synthetic data.
+- **Lint**: `flake8 BusNetPynew/ --max-line-length=150 --exclude=BusNetPynew/citycode.py,BusNetPynew/ChineseAdminiDivisionsDict.py`
+- **Tests**: `python3 -m pytest tests/ -v` (34 unit tests covering coordinate conversion, cycle detection, utils, Space-L/Space-P network, route planning, imports)
 
 ### Key caveats
 - Data collection features (`buspider.buspi.businfo()`) require AMap API keys (`key`, `key_fwd`, `jscode`). Without these keys, data scraping will not work, but all offline analysis (network construction, metrics, route planning, visualization) can be exercised with synthetic or pre-collected CSV data.
