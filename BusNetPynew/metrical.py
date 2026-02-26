@@ -393,22 +393,38 @@ def route_to_84(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
 
 def find_nearest_node(
     G: nx.Graph,
-    longitude: float,
-    latitude: float,
+    lng: float = None,
+    lat: float = None,
+    *,
+    longitude: float = None,
+    latitude: float = None,
 ) -> Tuple[Any, str, float]:
     """在图网络中查找距给定经纬度最近的节点。
 
+    支持两种参数风格：
+        - find_nearest_node(G, lng=112.97, lat=28.23)
+        - find_nearest_node(G, 112.97, 28.23)
+
     Args:
         G: 含 pos=(lng, lat) 和 staname 节点属性的 NetworkX 图。
-        longitude: 查询点经度。
-        latitude: 查询点纬度。
+        lng: 查询点经度（与 longitude 等价，二选一）。
+        lat: 查询点纬度（与 latitude 等价，二选一）。
+        longitude: 查询点经度（与 lng 等价，二选一）。
+        latitude: 查询点纬度（与 lat 等价，二选一）。
 
     Returns:
         (node_id, station_name, distance_km) 元组。
 
     Examples:
+        >>> node_id, name, dist = find_nearest_node(G_L, lng=116.4, lat=39.9)
         >>> node_id, name, dist = find_nearest_node(G_L, 116.4, 39.9)
     """
+    query_lng = lng if lng is not None else longitude
+    query_lat = lat if lat is not None else latitude
+
+    if query_lng is None or query_lat is None:
+        raise ValueError("必须提供经纬度参数：find_nearest_node(G, lng, lat) 或 find_nearest_node(G, lng=..., lat=...)")
+
     min_distance = float('inf')
     nearest_sta = None
     node_t = None
@@ -416,7 +432,7 @@ def find_nearest_node(
     for node, data in G.nodes(data=True):
         node_lat = data['pos'][1]
         node_lon = data['pos'][0]
-        distance = haversine_distance(latitude, longitude, node_lat, node_lon)
+        distance = haversine_distance(query_lat, query_lng, node_lat, node_lon)
 
         if distance < min_distance:
             min_distance = distance

@@ -210,11 +210,17 @@ class TestSpaceL(unittest.TestCase):
         self.assertGreater(cf, 0)
 
     def test_find_nearest_node(self):
-        """最近节点查找。"""
+        """最近节点查找（位置参数）。"""
         node_id, name, dist = find_nearest_node(self.G_L, 116.41, 39.91)
         self.assertEqual(node_id, 's2')
         self.assertIn('站', name)
         self.assertGreaterEqual(dist, 0)
+
+    def test_find_nearest_node_kwargs(self):
+        """最近节点查找（lng/lat 关键字参数）。"""
+        node_id, name, dist = find_nearest_node(self.G_L, lng=116.41, lat=39.91)
+        self.assertEqual(node_id, 's2')
+        self.assertIn('站', name)
 
     def test_unique_line(self):
         """最大共线边。"""
