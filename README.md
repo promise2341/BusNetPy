@@ -205,6 +205,129 @@ ksh_point(bus_stops)                        # 站点图
 ksh_all(bus_stops, gdf_route)              # 叠加图
 ```
 
+### 7. 可达性分析
+
+```python
+from BusNetPynew.accessibility import isochrone, multi_isochrone, travel_time_matrix
+
+# 单站点等时圈：30 分钟内可达站点
+node1, _, _ = find_nearest_node(G_L, lng=121.52, lat=31.30)
+result = isochrone(G_L, node1, time_limit=30, speed_kmh=20)
+print(f"30 分钟内可达 {result['total_reachable']} 个站点")
+print(result['reachable_details'].head())
+
+# 多级等时圈（15/30/45/60 分钟）
+gdf_iso = multi_isochrone(G_L, node1, time_limits=[15, 30, 45, 60])
+
+# 出行时间矩阵
+matrix = travel_time_matrix(G_L, speed_kmh=20, nodes=list(G_L.nodes())[:20])
+```
+
+### 8. 线网优化建议
+
+```python
+from BusNetPynew.optimization import (
+    find_redundant_segments, detect_spacing_anomalies,
+    evaluate_route_efficiency, suggest_new_stops
+)
+
+# 识别重叠超过 3 条线路的路段
+redundant = find_redundant_segments(G_L, threshold=3)
+print(f"有 {len(redundant)} 个路段经过 3 条以上线路")
+
+# 站间距异常检测
+anomalies = detect_spacing_anomalies(gdf_route, min_km=0.2, max_km=2.0)
+print(f"过短: {anomalies['stats']['too_short_count']} 段, 过长: {anomalies['stats']['too_long_count']} 段")
+
+# 线路效率评估
+efficiency = evaluate_route_efficiency(gdf_route, G_L)
+print(efficiency[['name', 'total_length_km', 'avg_spacing_km', 'efficiency_score']].head(10))
+
+# 建议新增站点
+new_stops = suggest_new_stops(gdf_route, max_spacing_km=2.0)
+```
+
+### 9. 换乘分析
+
+```python
+from BusNetPynew.transfer import (
+    identify_transfer_stations, direct_reach_rate,
+    line_connection_matrix, transfer_summary
+)
+
+# 识别换乘站及评级
+transfers = identify_transfer_stations(G_L)
+print(transfers[['staname', 'line_count', 'level']].head(10))
+
+# 直达率分析
+rates = direct_reach_rate(G_L)
+print(f"直达率: {rates['direct_rate']:.1%}")
+print(f"一次换乘可达率: {rates['one_transfer_rate']:.1%}")
+
+# 线路换乘关联矩阵
+matrix = line_connection_matrix(G_L)
+
+# 换乘综合摘要
+summary = transfer_summary(G_L)
+```
+
+### 10. 网络韧性与脆弱性分析
+
+```python
+from BusNetPynew.resilience import (
+    critical_nodes, simulate_node_failure,
+    simulate_line_failure, redundancy_analysis, network_robustness
+)
+
+# 识别最关键的站点
+critical = critical_nodes(G_L, top_n=10)
+print(critical[['staname', 'betweenness', 'line_count', 'critical_score']])
+
+# 模拟站点失效
+node_top = critical.iloc[0]['node_id']
+impact = simulate_node_failure(G_L, [node_top])
+print(f"严重程度: {impact['severity']}, 受影响线路: {impact['affected_lines']}")
+
+# 模拟线路停运
+line_impact = simulate_line_failure(G_L, '1路')
+print(f"移除边数: {line_impact['removed_edges']}, 严重程度: {line_impact['severity']}")
+
+# 冗余度分析（桥边、割点）
+redundancy = redundancy_analysis(G_L)
+print(f"桥边数: {redundancy['bridge_count']}, 割点数: {redundancy['articulation_count']}")
+print(f"平均冗余度: {redundancy['avg_redundancy']}")
+
+# 渐进式攻击健壮性曲线
+robustness = network_robustness(G_L, attack_mode='targeted', max_removals=10)
+```
+
+### 11. POI 数据联动
+
+```python
+from BusNetPynew.poi_bindling import (
+    station_poi_profile, facility_accessibility,
+    commute_analysis, nearby_stations, fetch_pois
+)
+
+# 获取 POI 数据（需要高德 API Key）
+# hospitals = fetch_pois(api_key='YOUR_KEY', city='上海', keywords='医院')
+
+# 站点周边 POI 画像
+profile = station_poi_profile(bus_stops, poi_gdf, radius_m=500)
+
+# 公共设施可达性
+access = facility_accessibility(G_L, bus_stops, poi_gdf, speed_kmh=20)
+
+# 职住通勤分析
+residential = ['s1', 's2', 's3']  # 居住区站点
+workplace = ['s10', 's11']         # 工作区站点
+commute = commute_analysis(G_L, residential, workplace, speed_kmh=20)
+print(f"平均通勤: {commute['avg_commute_min']:.1f} 分钟")
+
+# 查找附近站点
+nearby = nearby_stations(bus_stops, lng=121.52, lat=31.30, radius_m=1000)
+```
+
 ---
 
 ## 模块说明
