@@ -33,62 +33,79 @@ from .utils import (
 )
 
 
-def _ensure_endpoint_coords(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
-    """确保 GeoDataFrame 包含起止点坐标和直线距离列。
-
-    如果 zx_dis 列不存在，自动提取起止点坐标并计算直线距离。
-
-    Args:
-        gdf: 含 LineString 几何列的 GeoDataFrame。
-
-    Returns:
-        含 lng, lat, lng_y, lat_y, zx_dis 列的 GeoDataFrame。
-    """
-    if 'zx_dis' not in gdf.columns:
-        gdf = extract_endpoint_coords(gdf)
-    return gdf
-
-
-def _compute_nonline(
+def Nonline(
     gdf: gpd.GeoDataFrame,
     base_path: Optional[str] = None,
     hx_path: Optional[str] = None,
 ) -> Tuple[pd.DataFrame, pd.DataFrame, float, float]:
-    """非直线系数核心计算逻辑。
+    """计算公交线网非直线系数。
+
+    非直线系数 = 线路实际长度 / 起终点直线距离。
+    根据 GB50220-95 规范，单条线路不应大于 1.4，全网均值以 1.15～1.2 为宜。
+
+    环线判定规则（与原始代码一致）：
+        1. 若首段的 id == next_id（起点站连接自身），则判定为环线
+        2. 计算线路首站起点到末站终点的投影坐标直线距离 route_zx_dis（千米）
+        3. 若 route_zx_dis <= 1（起终点距离不超过 1 千米），判定为环线
+        4. 若 route_zx_dis > 1，判定为非环线，非直线系数 = 线路总长 / 起终点距离
+
+    对于环线，使用分段累计方式计算非直线系数（总 hx / 总 zx_dis）。
+
+    注意：输入 gdf 如果是 WGS-84 (EPSG:4326) 坐标系，会先投影到 EPSG:3857，
+    并从投影后的 geometry 中重新提取坐标，确保距离计算使用米制单位。
 
     Args:
-        gdf: 已包含 hx, zx_dis 列的投影坐标 GeoDataFrame。
-        base_path: 非环线结果 CSV 保存路径。
-        hx_path: 环线结果 CSV 保存路径。
+        gdf: 结构化公交线网 GeoDataFrame，含 hx, name, id, next_id 等列。
+        base_path: 非环线结果 CSV 保存路径，可选。
+        hx_path: 环线结果 CSV 保存路径，可选。
 
     Returns:
-        (base_line, fzxxs_hx, result_fzxxs_base, result_fzxxs_hx)
-        分别为非环线数据、环线数据、非环线非直线系数均值、环线非直线系数均值。
+        (base_line, fzxxs_hx, result_fzxxs_base, result_fzxxs_hx) 元组：
+            - base_line: 非环线数据 DataFrame
+            - fzxxs_hx: 环线数据 DataFrame
+            - result_fzxxs_base: 非环线非直线系数均值
+            - result_fzxxs_hx: 环线非直线系数均值
     """
-    gdf = _ensure_endpoint_coords(gdf)
+    if gdf.crs.to_epsg() == 4326:
+        # 投影到 EPSG:3857，确保距离计算使用米制单位
+        gdf = gdf.to_crs(epsg=3857)
+        # 投影后必须从新的 geometry 中重新提取坐标
+        # 原始代码在 4326 分支中也是无条件重新提取，不做 'zx_dis' 是否存在的检查
+        gdf = extract_endpoint_coords(gdf)
+    else:
+        # 非 4326 分支：与原始代码一致，仅在 zx_dis 不存在时提取
+        if 'zx_dis' not in gdf.columns:
+            gdf = extract_endpoint_coords(gdf)
 
+    # 计算每条线路的总长度
     sum_line = gdf.groupby('name')[['hx']].sum().reset_index()
     sum_line['route_zx_dis'] = None
 
+    # 计算每条线路首站起点到末站终点的直线距离
     for index, row in sum_line.iterrows():
         line_data = gdf[gdf['name'] == row['name']]
         if line_data.iloc[0]['id'] == line_data.iloc[0]['next_id']:
+            # 首段起终点相同，判定为环线
             sum_line.at[index, 'route_zx_dis'] = 0
         else:
             first_row = line_data.iloc[0]
             last_row = line_data.iloc[-1]
+            # 使用投影坐标计算直线距离（米→千米）
             sum_line.at[index, 'route_zx_dis'] = math.sqrt(
                 math.pow(first_row['lng'] - last_row['lng_y'], 2)
                 + math.pow(first_row['lat'] - last_row['lat_y'], 2)
             ) / 1000
 
+    # 环线判定：起终点距离 <= 1 km 的线路标记为 0（环线）
     sum_line['fzxxs_base'] = sum_line.apply(
         lambda row: row['hx'] / row['route_zx_dis'] if row['route_zx_dis'] > 1 else 0,
         axis=1,
     )
 
+    # 分离环线数据
     fzxxs_hx = sum_line[sum_line['fzxxs_base'] == 0].copy()
 
+    # 环线使用分段累计计算非直线系数
     def hx_fzx(row: pd.Series) -> float:
         line_data = gdf[gdf['name'] == row['name']]
         cs = line_data.groupby('name')['hx'].sum() / line_data.groupby('name')['zx_dis'].sum()
@@ -110,38 +127,6 @@ def _compute_nonline(
     return base_line, fzxxs_hx, result_fzxxs_base, result_fzxxs_hx
 
 
-def Nonline(
-    gdf: gpd.GeoDataFrame,
-    base_path: Optional[str] = None,
-    hx_path: Optional[str] = None,
-) -> Tuple[pd.DataFrame, pd.DataFrame, float, float]:
-    """计算公交线网非直线系数。
-
-    非直线系数 = 线路实际长度 / 起终点直线距离。
-    根据 GB50220-95 规范，单条线路不应大于 1.4，全网均值以 1.15～1.2 为宜。
-
-    对于环线（起终点相同或距离极近），使用分段累计计算非直线系数。
-
-    自动处理 WGS-84 (EPSG:4326) 坐标系的投影转换。
-
-    Args:
-        gdf: 结构化公交线网 GeoDataFrame，含 hx, name, id, next_id 等列。
-        base_path: 非环线结果 CSV 保存路径，可选。
-        hx_path: 环线结果 CSV 保存路径，可选。
-
-    Returns:
-        (base_line, fzxxs_hx, result_fzxxs_base, result_fzxxs_hx) 元组：
-            - base_line: 非环线数据 DataFrame
-            - fzxxs_hx: 环线数据 DataFrame
-            - result_fzxxs_base: 非环线非直线系数均值
-            - result_fzxxs_hx: 环线非直线系数均值
-    """
-    if gdf.crs.to_epsg() == 4326:
-        gdf = gdf.to_crs(epsg=3857)
-
-    return _compute_nonline(gdf, base_path, hx_path)
-
-
 def avg_station(
     gdf: gpd.GeoDataFrame,
     file_path: Optional[str] = None,
@@ -157,8 +142,11 @@ def avg_station(
     """
     if gdf.crs.to_epsg() == 4326:
         gdf = gdf.to_crs(3857)
-
-    gdf = _ensure_endpoint_coords(gdf)
+        # 投影后必须重新提取坐标，否则 lng/lat 仍为 WGS84 度数
+        gdf = extract_endpoint_coords(gdf)
+    else:
+        if 'zx_dis' not in gdf.columns:
+            gdf = extract_endpoint_coords(gdf)
 
     avg_sta = gdf.groupby('name')['hx'].mean().reset_index().sort_values('hx')
     if file_path:

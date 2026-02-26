@@ -15,7 +15,8 @@ from BusNetPynew.metrical import (
     find_nearest_node,
     most_linesta,
     unique_line,
-    extract_endpoint_coords,
+    Nonline,
+    avg_station,
 )
 from BusNetPynew.routplaning import (
     GP_planning,
@@ -277,6 +278,76 @@ class TestSpaceP(unittest.TestCase):
         G.add_node("b", pos=(1, 1), staname="Y")
         with self.assertRaises(nx.NetworkXNoPath):
             GP_planning(G, "a", "b")
+
+
+class TestNonlineLoopDetection(unittest.TestCase):
+    """环线判断测试 —— 验证 CRS 转换后坐标重提取的正确性。"""
+
+    @classmethod
+    def setUpClass(cls):
+        """构建含明确非环线的 WGS84 测试数据（模拟 build_route 输出）。"""
+        from BusNetPynew.busbuild import ycl_gdf
+
+        data = [
+            {"stationname": "A站", "id": "s1", "name": "1路(上行)", "dir": 1, "hx": 1.5,
+             "next_id": "s2", "nt_stationname": "B站"},
+            {"stationname": "B站", "id": "s2", "name": "1路(上行)", "dir": 1, "hx": 2.0,
+             "next_id": "s3", "nt_stationname": "C站"},
+            {"stationname": "C站", "id": "s3", "name": "1路(上行)", "dir": 1, "hx": 1.8,
+             "next_id": "s4", "nt_stationname": "D站"},
+        ]
+        gdf = gpd.GeoDataFrame(data)
+        gdf['geometry'] = [
+            LineString([(112.98, 28.20), (112.97, 28.19)]),
+            LineString([(112.97, 28.19), (112.95, 28.18)]),
+            LineString([(112.95, 28.18), (112.93, 28.17)]),
+        ]
+        gdf = gdf.set_geometry('geometry')
+        gdf.crs = "EPSG:4326"
+        cls.gdf_wgs84 = ycl_gdf(gdf)
+
+    def test_nonloop_route_not_classified_as_loop(self):
+        """非环线路（起终点相距约 6km）不应被判为环线。"""
+        base_line, fzxxs_hx, _, _ = Nonline(self.gdf_wgs84)
+        self.assertEqual(len(base_line), 1, "应有 1 条非环线")
+        self.assertEqual(len(fzxxs_hx), 0, "不应有环线")
+
+    def test_nonline_coefficient_reasonable(self):
+        """非直线系数应为正数（合理范围）。"""
+        base_line, _, result_fzxxs_base, _ = Nonline(self.gdf_wgs84)
+        self.assertGreater(result_fzxxs_base, 0)
+
+    def test_loop_route_detected(self):
+        """起终点相同的环线应被正确识别。"""
+        from BusNetPynew.busbuild import ycl_gdf
+
+        data = [
+            {"stationname": "A站", "id": "s1", "name": "环线1路", "dir": 1, "hx": 2.0,
+             "next_id": "s2", "nt_stationname": "B站"},
+            {"stationname": "B站", "id": "s2", "name": "环线1路", "dir": 1, "hx": 2.0,
+             "next_id": "s3", "nt_stationname": "C站"},
+            {"stationname": "C站", "id": "s3", "name": "环线1路", "dir": 1, "hx": 2.0,
+             "next_id": "s1", "nt_stationname": "A站"},
+        ]
+        gdf = gpd.GeoDataFrame(data)
+        gdf['geometry'] = [
+            LineString([(112.98, 28.20), (112.99, 28.21)]),
+            LineString([(112.99, 28.21), (112.97, 28.21)]),
+            LineString([(112.97, 28.21), (112.98, 28.20)]),
+        ]
+        gdf = gdf.set_geometry('geometry')
+        gdf.crs = "EPSG:4326"
+        gdf = ycl_gdf(gdf)
+
+        base_line, fzxxs_hx, _, _ = Nonline(gdf)
+        self.assertEqual(len(fzxxs_hx), 1, "应有 1 条环线")
+        self.assertEqual(len(base_line), 0, "不应有非环线")
+
+    def test_avg_station_with_wgs84_input(self):
+        """avg_station 对 WGS84 输入也应正确工作。"""
+        avg_sta = avg_station(self.gdf_wgs84)
+        self.assertGreater(len(avg_sta), 0)
+        self.assertGreater(avg_sta['hx'].iloc[0], 0)
 
 
 class TestImports(unittest.TestCase):
