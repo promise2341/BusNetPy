@@ -1,0 +1,17 @@
+pandas
+geopandas
+shapely
+networkx
+requests
+beautifulsoup4
+lxml
+tqdm
+fuzzywuzzy
+python-Levenshtein
+pypinyin
+xlwt
+matplotlib
+contextily
+osmnx
+pyproj
+flake8
