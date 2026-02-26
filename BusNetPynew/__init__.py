@@ -17,11 +17,19 @@ __version__ = "0.1.0"
 __author__ = "promise2341"
 
 __all__ = [
+    # 核心模块
     "buspider",
     "busbuild",
     "metrical",
     "routplaning",
     "csvis",
+    # 分析模块
+    "accessibility",
+    "optimization",
+    "transfer",
+    "resilience",
+    "poi_bindling",
+    # 工具模块
     "find_cycle",
     "buslist",
     "citybus",

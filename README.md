@@ -50,6 +50,11 @@
 | **路径规划** | 基于 Space-P 网络的公交换乘最短路径规划 |
 | **可视化** | 静态图（matplotlib）和交互式地图（folium/geopandas） |
 | **数据导出** | 导出为 Shapefile、CSV 等格式 |
+| **可达性分析** | 等时圈分析、站点覆盖率、出行时间矩阵 |
+| **线网优化** | 重复路段识别、覆盖盲区检测、站间距异常检测、线路效率评估 |
+| **换乘分析** | 换乘站识别与评级、直达率分析、线路换乘关联矩阵 |
+| **网络韧性** | 关键节点识别、失效模拟、冗余度分析、渐进式攻击健壮性评估 |
+| **POI 联动** | 站点周边 POI 画像、公共设施可达性、职住通勤分析 |
 
 ---
 
@@ -217,6 +222,11 @@ ksh_all(bus_stops, gdf_route)              # 叠加图
 | `find_cycle` | `find_cycle.py` | 环线检测，识别公交线路中的环形模式 |
 | `citycode` | `citycode.py` | 全国城市行政编码数据（adcode/citycode） |
 | `utm_espg` | `utm_espg.py` | UTM 投影带号计算与坐标变换工具 |
+| `accessibility` | `accessibility.py` | 可达性分析（等时圈、覆盖率、时间矩阵） |
+| `optimization` | `optimization.py` | 线网优化建议（重复路段、盲区、站间距） |
+| `transfer` | `transfer.py` | 换乘分析（换乘站识别、直达率、关联矩阵） |
+| `resilience` | `resilience.py` | 网络韧性（关键节点、失效模拟、冗余度） |
+| `poi_bindling` | `poi_bindling.py` | POI 联动（设施可达性、通勤分析） |
 | `utils` | `utils.py` | 公共工具函数（坐标提取、距离计算等） |
 | `ChineseAdminiDivisionsDict` | `ChineseAdminiDivisionsDict.py` | 中国行政区划编码字典 |
 | `conversion_geo` | `conversion_geo.py` | 地理边界校验与 Shapefile 导出 |
@@ -228,7 +238,12 @@ ksh_all(bus_stops, gdf_route)              # 叠加图
 ```
 数据采集 ──→ 数据构建 ──→ 网络建模 ──→ 指标分析 ──→ 可视化/导出
                                     │
-                                    └──→ 路径规划
+                                    ├──→ 路径规划
+                                    ├──→ 可达性分析（等时圈/覆盖率）
+                                    ├──→ 换乘分析（换乘站/直达率）
+                                    ├──→ 线网优化（盲区/冗余/效率）
+                                    ├──→ 网络韧性（关键节点/失效模拟）
+                                    └──→ POI 联动（设施可达/通勤分析）
 ```
 
 **详细流程：**
