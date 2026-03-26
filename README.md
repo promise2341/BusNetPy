@@ -12,8 +12,8 @@
 
 ---
 联系方式：
-email：jinyang9510@gmail.com
-wechat:zzxdjb_1202
+- email：jinyang9510@gmail.com
+- wechat:zzxdjb_1202
 
 ## 目录
 
