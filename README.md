@@ -13,7 +13,9 @@
 ---
 ## 联系方式：
 - email：jinyang9510@gmail.com
-- wechat:zzxdjb_1202
+- wechat: zzxdjb_1202
+- 公众号: 规划与代码之旅
+- b站：小土豆6666条
 
 ## 目录
 
